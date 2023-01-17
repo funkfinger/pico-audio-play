@@ -1,12 +1,13 @@
 #include <Arduino.h>
 #include <I2S.h>
 
+// Create the I2S port using a PIO state machine
 I2S i2s(OUTPUT);
 
 // GPIO pin numbers
-#define pBCLK 12
-#define pWS 14
-#define pDOUT 15
+#define pBCLK D9
+#define pWS D10
+#define pDOUT D11
 
 const int frequency = 440;    // frequency of square wave in Hz
 const int amplitude = 500;    // amplitude of square wave
