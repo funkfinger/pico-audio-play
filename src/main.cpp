@@ -1,6 +1,9 @@
 #include <Arduino.h>
 #include <I2S.h>
 
+#define WAVE_TABLE_LEN 2048
+static int16_t wave_table[WAVE_TABLE_LEN];
+
 // Create the I2S port using a PIO state machine
 I2S i2s(OUTPUT);
 
@@ -9,14 +12,58 @@ I2S i2s(OUTPUT);
 #define pWS D10
 #define pDOUT D11
 
-const int frequency = 440;    // frequency of square wave in Hz
-const int amplitude = 500;    // amplitude of square wave
 const int sampleRate = 16000; // minimum for UDA1334A
 
-const int halfWavelength = (sampleRate / frequency); // half wavelength of square wave
-
-int16_t sample = amplitude; // current sample value
-int count = 0;
+void makeWave(int8_t type)
+{ // type 0 = sine, 1 = saw, 2 = triangle, 3 = square
+  int16_t increment = 0;
+  int16_t point = 0;
+  if (type == 0)
+  { // sine wave
+    for (int16_t i = 0; i < WAVE_TABLE_LEN; i++)
+    {
+      wave_table[i] = 0x1000 * sinf(i * 2 * (float)(PI / WAVE_TABLE_LEN)); // 0x1000 12 bit look up table
+    }
+  }
+  if (type == 1)
+  { // saw tooth
+    point = 0;
+    increment = 4;
+    for (int16_t i = 0; i < WAVE_TABLE_LEN; i++)
+    {
+      wave_table[i] = point;
+      point += increment;
+      if (i == 1024)
+      {
+        point = -0x1000;
+      }
+    }
+  }
+  if (type == 2)
+  { // triangle
+    point = 0;
+    increment = 8;
+    for (int16_t i = 0; i < WAVE_TABLE_LEN; i++)
+    {
+      wave_table[i] = point;
+      point += increment;
+      if (i == 512)
+        increment = -increment;
+      if (i == 1536)
+        increment = -increment;
+    }
+  }
+  if (type == 3)
+  { // square
+    point = 4095;
+    for (int16_t i = 0; i < WAVE_TABLE_LEN; i++)
+    {
+      wave_table[i] = point;
+      if (i == 1024)
+        point = -4095;
+    }
+  }
+}
 
 void setup()
 {
@@ -37,20 +84,22 @@ void setup()
     while (1)
       ; // do nothing
   }
+  makeWave(0);
 }
+
+unsigned long previousMicros = 0;
+const long interval = 1000;
+
+int16_t sample = 500;
 
 void loop()
 {
-  if (count % halfWavelength == 0)
+  unsigned long currentMicros = micros();
+  if (currentMicros - previousMicros >= interval)
   {
-    // invert the sample every half wavelength count multiple to generate square wave
-    sample = -1 * sample;
+    previousMicros = currentMicros;
+    sample *= -1;
   }
-
-  // write the same sample twice, once for left and once for the right channel
   i2s.write(sample);
   i2s.write(sample);
-
-  // increment the counter for the next sample
-  count++;
 }
